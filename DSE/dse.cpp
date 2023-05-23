@@ -5,7 +5,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Instruction.h"
-
+#include "llvm/Analysis/CFG.h"
+#include<unordered_set>
 using namespace llvm;
 
 namespace {
@@ -13,8 +14,8 @@ namespace {
     public:
         static char ID;
         std::unordered_map<Value*, StoreInst*> ptr2inst; // Pointer value -> instruction
-        std::unordered_map<StoreInst*, int> inst2num; // Instruction -> number of uses for a value
         std::vector<StoreInst*> instsDelete; // Worklist of instructions to delete
+        std::unordered_set<Value*> unsafeptr; // set of pointer values that are used in load instructions
 
         OurDSEPass() : FunctionPass(ID) {}
 
@@ -22,27 +23,38 @@ namespace {
 
             bool changed=false; //indicates if changes to IR were made
             for(auto &BB : F) {
+                //without this line, stores before if else branches would get deleted, without considering if we're gonna enter those basic blocks during runtime
+                ptr2inst.clear();
+                unsafeptr.clear();
                 for(auto &inst : BB) {
-                     if(StoreInst* si = dyn_cast<StoreInst>(&inst)) { //consider only store instructions
-                         Value * val = si->getValueOperand(); //actual number
-                         Value* ptrval = si->getPointerOperand(); //pointer value, doesnt change after alloca
 
-                         int numUses = val->getNumUses();
-                         inst2num[si] = numUses;
+                     if(StoreInst* si = dyn_cast<StoreInst>(&inst)) { //consider only store instructions
+                         Value* ptrval = si->getPointerOperand(); //pointer value, doesnt change after alloca
 
                          if(ptr2inst.find(ptrval) == ptr2inst.end()) { //if not in map, add it
                              ptr2inst[ptrval] = si;
                          }
-                         else { // in map -> 2nd or later store instruction for same pointer, consider deletion
+                         else { // not the first store to the pointer
+                             //fetch previous store inst that assigned value to the already seen pointer
                              StoreInst* candidate = ptr2inst[ptrval];
-                             // usage number 1 means the value was never used outside of store.
-                             // check if it's the same value as previous store (i.e. two lines of int x=5)
-                             if (inst2num[candidate]==1 || candidate->getValueOperand()==val) {
+                             if(unsafeptr.find(ptrval)==unsafeptr.end()) {
                                  instsDelete.push_back(candidate);
+
                              }
+                             //ptr is not safe currently
+                             else {
+                                 unsafeptr.erase(ptrval);
+                             }
+
                              ptr2inst[ptrval] = si;
                          }
                      }
+                     else if(LoadInst* li = dyn_cast<LoadInst>(&inst)) {
+                         Value* loadptr = li->getPointerOperand();
+
+                         unsafeptr.insert(loadptr);
+                     }
+
                 }
             }
             //delete selected instructions
@@ -52,8 +64,6 @@ namespace {
             }
 
             return changed;
-            //NOTE: C code (which you run passes on) returns 0 in main. IR always allocates value 0 to a pointer value %1, so in theory with this
-            // implementation you should make an edge case when the value stored is 0. (decrement twice when checking, once for return value, once for IR start)
         }
     };
 }
@@ -61,3 +71,4 @@ namespace {
 
 char OurDSEPass::ID = 0;
 static RegisterPass<OurDSEPass> X("our-dse", "our dead store elimination");
+
