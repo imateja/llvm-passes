@@ -1,1 +1,2 @@
-add_subdirectory(DCE)
+add_subdirectory(DSE)
+add_subdirectory(DGE)
