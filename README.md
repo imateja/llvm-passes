@@ -21,3 +21,4 @@ cd build
 ./bin/clang -emit-llvm -S source.c
 ./bin/opt -load lib/LLVMOurDGEPass.so -enable-new-pm=0 -our-dge -S source.ll > optimized.ll
 ```
+Since Post Dominator Tree analysis isn't a transform pass redirect the output to /dev/null, read results from the generated .dot file.
