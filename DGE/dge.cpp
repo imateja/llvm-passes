@@ -22,11 +22,11 @@ namespace {
             //recursively check if global var is contained in instructions
             for(User* u : gv->users()) {
                 if(Instruction *inst = dyn_cast<Instruction>(u)) {
-                    for(auto vstart=inst->op_begin(), vend=inst->op_end(); vstart!=vend; vstart++ ) {
-                        if(GlobalVariable* curr = dyn_cast<GlobalVariable>(vstart)) {
+                    //for(auto vstart=inst->op_begin(), vend=inst->op_end(); vstart!=vend; vstart++ ) {
+                        //if(GlobalVariable* curr = dyn_cast<GlobalVariable>(vstart)) {
                             return true;
-                        }
-                    }
+                        //}
+                    //}
                 }
             }
             return false;
