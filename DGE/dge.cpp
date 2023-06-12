@@ -13,31 +13,25 @@ namespace {
     class OurDGEPass : public ModulePass {
     public:
         static char ID;
-        std::unordered_set<GlobalVariable*> visited; //for reachability function
         std::vector<GlobalVariable*> deletable; //variables to be deleted
 
         OurDGEPass() : ModulePass(ID) {}
 
         bool isReachable(GlobalVariable* gv) {
-            if(visited.count(gv)) { // check if already visited (count returns # of occurrences of elem in a set)
-                return true;
-            }
-            visited.insert(gv);
 
             //recursively check if global var is contained in instructions
             for(User* u : gv->users()) {
                 if(Instruction *inst = dyn_cast<Instruction>(u)) {
                     for(auto vstart=inst->op_begin(), vend=inst->op_end(); vstart!=vend; vstart++ ) {
                         if(GlobalVariable* curr = dyn_cast<GlobalVariable>(vstart)) {
-                            if(isReachable(curr))
-                                return true;
+                            return true;
                         }
                     }
                 }
             }
-
             return false;
         }
+
         bool runOnModule(Module &M) override {
 
             bool changed=false; //indicates if changes to IR were made
@@ -48,13 +42,11 @@ namespace {
                     continue;
                 //ignore iteration if global is reachable
                 if(isReachable(gv)) {
-                    //errs()<<gv->getName()<<"\n";
-                    visited.clear();
                     continue;
                 }
                 deletable.push_back(gv);
                 changed=true;
-                
+
             }
             for(GlobalVariable* elem : deletable) {
                 M.eraseGlobalVariable(elem);
